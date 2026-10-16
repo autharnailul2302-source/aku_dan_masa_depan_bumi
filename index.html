@@ -159,8 +159,8 @@ summary{cursor:pointer;font-weight:800;min-height:44px;display:flex;align-items:
 #intro:not([data-ph=title]):not([data-ph=akun]) #stNav{display:none}
 /* Peringkat = modal: tombol nav atas ikut "tenggelam" di belakang panel, tidak menimpa judul/panel */
 #stNav{transition:opacity .25s ease,visibility 0s linear 0s}
-#intro:has(#stAkun.rank) #stNav,#intro:has(#stAkun.jejak) #stNav{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s ease,visibility 0s linear .2s}
-#intro:has(#stAkun.rank) #stNav .bt,#intro:has(#stAkun.jejak) #stNav .bt{pointer-events:none}
+#intro[data-ph=akun]:has(#stAkun.rank) #stNav,#intro[data-ph=akun]:has(#stAkun.jejak) #stNav{opacity:0;visibility:hidden;pointer-events:none;transition:opacity .2s ease,visibility 0s linear .2s}
+#intro[data-ph=akun]:has(#stAkun.rank) #stNav .bt,#intro[data-ph=akun]:has(#stAkun.jejak) #stNav .bt{pointer-events:none}
 #stAkun .stat{right:auto;left:2%}
 #intro[data-ph=akun]::before{background-image:url(images/bg_pilih_akun.png)}
 html:not(.kb) :focus-visible:not(input):not(textarea):not(select),html:not(.kb) .bt:focus-visible,html:not(.kb) .ava input:focus-visible+label{outline:none}
@@ -975,7 +975,7 @@ html.diam #pTunas img{animation:none}
 .rkl li{display:flex;align-items:center;gap:.7em;min-height:2.5em;padding:.2em .9em .2em .5em;background:#fff;border:.15em solid #bfe3a8;border-radius:.9em;animation:rkMasuk .35s both}
 .rkn{flex:none;width:1.9em;height:1.9em;border-radius:50%;display:grid;place-items:center;background:#e6f4dc;border:.12em solid #8cc77a;font-weight:900;font-size:.95em}
 .ak .rkl svg,.ak .rkl .pic{width:2.2em!important;height:2.2em!important;flex:none}.ak .rkl .pic{border-width:2px}
-.rkl .nm{font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rkl small{opacity:.75;font-weight:700;white-space:nowrap}
+.rkl .nm{font-weight:800;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.rkl small{opacity:.75;font-weight:700;white-space:nowrap}.rkl small.sek{max-width:42%;overflow:hidden;text-overflow:ellipsis}
 .rkl .sk{margin-left:auto;font-weight:900;display:inline-flex;align-items:center;gap:.3em}.rkl .sk .ico{width:1.1em;height:1.1em}
 .rkl li.aku{background:#fff8d6;border-color:#ffb703;box-shadow:0 0 0 .1em #ffb703}
 .rkbw{display:grid;grid-template-columns:1fr auto 1fr;align-items:center;margin-top:.5em}.rkbw .gb{justify-self:start}
@@ -4058,13 +4058,34 @@ function simpanProgres(){const L=muatAkun(),a=L.find(x=>x.id===AKTIF);if(!a||S.l
 function catatSkor(v){const L=muatAkun(),a=L.find(x=>x.id===AKTIF);if(!a)return;taut(a);const sk=Object.keys(v).reduce((t,k)=>t+v[k],0)+10*(S.skorPost||0);
  a.skor=Math.max(a.skor||0,sk);a.selesai=true;simpanAkun(L);kirim(Object.assign(dasar(a),{aksi:'skor',level:5,skor:a.skor,waktu:Date.now()}));}
 /* peringkat: lg = 'kelas' (default) atau 'sekolah'. Online: dari Google Sheets. Offline: dari akun di perangkat ini. */
-async function ambilPeringkat(lg){const c=kls(),sek=c.sekolah,kel=c.kelas;
- if(!sek||(lg==='kelas'&&!kel))return{kurang:true,sek,kel,list:[]};
- let list=null;
- if(daring()){try{await kosongkan();const r=await fetch(GS_URL+'?aksi=peringkat&lingkup='+lg+'&sekolah='+encodeURIComponent(sek)+'&kelas='+encodeURIComponent(kel||'')),j=await r.json();if(j&&Array.isArray(j.data))list=j.data;}catch(e){}}
- const lokal=!list;
- if(lokal)list=muatAkun().filter(x=>x.skor&&x.sekolah===sek&&(lg==='sekolah'||x.kelas===kel)).map(x=>({id:x.id,nama:x.nama,avatar:x.avatar,kelas:x.kelas||'',skor:x.skor})).sort((p,q)=>q.skor-p.skor).slice(0,30);
- return{list,sek,kel,lokal};}
+/* Peringkat dibuat cepat: (1) tampil SEGERA dari cache terakhir / data di perangkat, (2) server dimuat di latar belakang
+   (batas waktu 7 detik, tanpa menunggu antrean kirim), (3) tampilan diperbarui hanya bila datanya berubah. */
+const PK_CAP={kelas:10,sekolah:10,nasional:100};
+const pkKunci=(lg,c)=>'amdb_pk:'+lg+':'+(lg==='nasional'?'':c.sekolah)+':'+(lg==='kelas'?c.kelas:'');
+function pkBaca(k){try{const j=JSON.parse(localStorage.getItem(k));return j&&Array.isArray(j.list)?j.list:null;}catch(e){return null;}}
+function pkSimpan(k,list){try{localStorage.setItem(k,JSON.stringify({t:Date.now(),list}));}catch(e){}}
+/* skor akun di perangkat ini selalu ikut dihitung, supaya skor terbarumu tidak tertinggal menunggu server */
+function gabungAku(list,lg){const a=akunAktif(),c=kls(),cap=PK_CAP[lg];if(!a||!a.skor)return list;
+ const i=list.findIndex(x=>x.id===a.id);let L=list.slice();
+ if(i>=0){if(L[i].skor<a.skor)L[i]=Object.assign({},L[i],{skor:a.skor});}
+ else if(a.sekolah&&(lg==='nasional'||(a.sekolah===c.sekolah&&(lg==='sekolah'||a.kelas===c.kelas)))&&(L.length<cap||a.skor>L[L.length-1].skor))
+  L.push({id:a.id,nama:a.nama,avatar:a.avatar,kelas:a.kelas||'',sekolah:a.sekolah,skor:a.skor});
+ return L.sort((p,q)=>q.skor-p.skor).slice(0,Math.max(cap,30));}
+function peringkatCepat(lg){const c=kls(),sek=c.sekolah,kel=c.kelas;
+ if(lg!=='nasional'&&(!sek||(lg==='kelas'&&!kel)))return{kurang:true,sek,kel,list:[]};
+ let list=pkBaca(pkKunci(lg,c));
+ if(!list&&lg!=='nasional')list=muatAkun().filter(x=>x.skor&&x.sekolah===sek&&(lg==='sekolah'||x.kelas===kel)).map(x=>({id:x.id,nama:x.nama,avatar:x.avatar,kelas:x.kelas||'',skor:x.skor})).sort((p,q)=>q.skor-p.skor).slice(0,30);
+ if(!list)return{kosong:true,sek,kel,list:[]};
+ return{list:gabungAku(list,lg),sek,kel,lokal:true,memuat:daring()};}
+/* hasil: {list} sukses | {galat:'belum'} server lama belum mendukung nasional | null gagal/offline/terlalu lama */
+async function peringkatServer(lg){if(!daring())return null;
+ const c=kls(),sek=c.sekolah,kel=c.kelas,ac=new AbortController(),tm=setTimeout(()=>ac.abort(),7000);
+ kosongkan();/* antrean kirim jalan di latar belakang, tidak ditunggu */
+ try{const r=await fetch(GS_URL+'?aksi=peringkat&lingkup='+lg+'&sekolah='+encodeURIComponent(sek||'')+'&kelas='+encodeURIComponent(kel||''),{signal:ac.signal}),j=await r.json();
+  if(lg==='nasional'&&!(j&&j.lingkup==='nasional'&&Array.isArray(j.data)))return{galat:'belum'};
+  if(!(j&&Array.isArray(j.data)))return null;
+  pkSimpan(pkKunci(lg,c),j.data);return{list:gabungAku(j.data,lg),sek,kel};}
+ catch(e){return null;}finally{clearTimeout(tm);}}
 /* ===== JEJAK PETUALANGANKU: rekap perjalanan pemain (menggantikan peringkat di menu akun) ===== */
 function jejakHTML(a){
  const sim=a.simpan||null,set=new Set(sim?sim.pilih:[]),pil=Array.from(set);
@@ -4108,10 +4129,20 @@ function aku(l,keep){AK.l=l||AK.l;if(AK.l==='pilih'&&!keep){AK.p=0;AK.q='';}cons
  if(AK.l==='pilih'){const n=muatAkun().length,pg=n>perHal(),cols=Math.min(3,n<3?n+1:3),aw=Math.max(25,cols*10.6+(cols-1)*.9+6.6+(pg?7.4:0));st.style.setProperty('--aw',aw.toFixed(1)+'em');
   h=`<h2 class="plak">Pilih akun</h2><p class="pt">${n?'Pilih kartumu untuk lanjut bermain.':'Belum ada akun di perangkat ini. Buat akun pertamamu.'}</p>${n>6?`<div class="cari"><label class="sr" for="akCari">Cari nama</label><input id="akCari" type="text" maxlength="20" autocomplete="off" placeholder="🔍 Cari namamu…" value="${esc(AK.q||'')}"></div>`:''}<div class="pgw"><button class="pk-ar" data-ak="hal" data-v="-1" aria-label="Halaman sebelumnya"${pg?'':' hidden'}><span>‹</span></button><div class="lst tags" id="akLst"></div><button class="pk-ar" data-ak="hal" data-v="1" aria-label="Halaman berikutnya"${pg?'':' hidden'}><span>›</span></button></div><div class="pk-dots" id="akDots" aria-hidden="true"></div><p class="sr" id="akHal" aria-live="polite"></p><div class="bw"><button class="gb" data-ak="hub">← Kembali</button>${n>=3?'<button class="gb ya" data-ak="baru">＋ Akun baru</button>':''}</div>`;} else if(AK.l==='menu'){const ada=!!a.simpan;h=`<div class="hd">${avatarSVG(avaObj(a.avatar),64)}<div><h2 style="margin:0">${esc(a.nama)}</h2><small>${a.skor?'Skor terbaik '+a.skor:'Ayo mulai petualangan!'}</small></div><button class="gb kc" data-ak="ganti">Ganti akun</button></div><div class="mn"><button class="gb ya" data-ak="mulaiBaru">🌱 Mulai baru</button><button class="gb" data-ak="lanjut" ${ada?'':'disabled'}>▶ Lanjutkan petualangan<small>${ada?(LBL[a.layar]||''):'Belum ada simpanan'}</small></button><button class="gb" data-ak="rank">🏆 Peringkat Pahlawan Bumi</button><button class="gb" data-ak="kelas">🏫 ${a.sekolah?esc(a.sekolah)+(a.kelas?' · '+esc(a.kelas):''):'Isi kode kelas'}</button><button class="gb" data-ak="beranda">🏠 Kembali ke beranda</button></div>`;}
  else if(AK.l==='jejak'){h=jejakHTML(a);}
- else{const lg=AK.r==='sekolah'?'sekolah':'kelas';AK.rd=null;AK.rp=0;h=`<h2 class="plak">Peringkat Pahlawan Bumi</h2><div class="bw tabs" role="group" aria-label="Lingkup peringkat"><button class="gb ${lg==='kelas'?'ya':''}" data-ak="lingkup" data-v="kelas" aria-pressed="${lg==='kelas'}">👥 Kelasku</button><button class="gb ${lg==='sekolah'?'ya':''}" data-ak="lingkup" data-v="sekolah" aria-pressed="${lg==='sekolah'}">🏫 Sekolahku</button></div><div class="rkw" id="rkIsi" aria-live="polite"><p class="rkinfo">Memuat…</p></div><div class="bw rkbw"><button class="gb" data-ak="kembali">← Kembali</button><div class="rkpg" id="rkPg"></div><span></span></div>`;
-  ambilPeringkat(lg).then(r=>{const e=$('#rkIsi');if(!e||AK.l!=='rank'||AK.r!==lg)return;
-   if(r.kurang){e.innerHTML='<div class="rkkos"><div><div class="rkbig" aria-hidden="true">🏫</div><p>Belum ada kode kelas. Minta link atau kode kelas dari gurumu, lalu isi lewat tombol 🏫 di menu akun.</p></div></div>';return;}
-   r.lg=lg;AK.rd=r;const me=r.list.findIndex(x=>x.id&&x.id===AKTIF);AK.rp=me>=3?Math.floor((me-3)/RKP()):0;rkTampil();});}
+ else{const lg=AK.r==='sekolah'||AK.r==='nasional'?AK.r:'kelas';AK.rd=null;AK.rp=0;h=`<h2 class="plak">Peringkat Pahlawan Bumi</h2><div class="bw tabs" role="group" aria-label="Lingkup peringkat"><button class="gb ${lg==='kelas'?'ya':''}" data-ak="lingkup" data-v="kelas" aria-pressed="${lg==='kelas'}">👥 Kelasku</button><button class="gb ${lg==='sekolah'?'ya':''}" data-ak="lingkup" data-v="sekolah" aria-pressed="${lg==='sekolah'}">🏫 Sekolahku</button><button class="gb ${lg==='nasional'?'ya':''}" data-ak="lingkup" data-v="nasional" aria-pressed="${lg==='nasional'}">🇮🇩 Nasional</button></div><div class="rkw" id="rkIsi" aria-live="polite"><p class="rkinfo">Memuat…</p></div><div class="bw rkbw"><button class="gb" data-ak="kembali">← Kembali</button><div class="rkpg" id="rkPg"></div><span></span></div>`;
+  const pesan=(ik,tx)=>{const e=$('#rkIsi');if(!e)return;e.innerHTML='<div class="rkkos"><div><div class="rkbig" aria-hidden="true">'+ik+'</div><p>'+tx+'</p></div></div>';const pg=$('#rkPg');if(pg)pg.innerHTML='';};
+  const tampilR=(r,awal)=>{if(!$('#rkIsi')||AK.l!=='rank'||AK.r!==lg)return;
+   if(r.kurang){pesan('🏫','Belum ada kode kelas. Minta link atau kode kelas dari gurumu, lalu isi lewat tombol 🏫 di menu akun.');return;}
+   if(r.nasional){pesan(r.nasional==='belum'?'🛠️':'📡',{offline:'Peringkat nasional butuh internet. Sambungkan perangkat, lalu buka tab ini lagi.',belum:'Peringkat nasional belum diaktifkan oleh guru. Untuk sementara, lihat peringkat Kelasku atau Sekolahku ya.',gagal:'Peringkat nasional belum bisa dimuat. Coba lagi sebentar lagi.'}[r.nasional]);return;}
+   r.lg=lg;const L0=AK.rd;
+   if(!awal&&L0&&L0.lg===lg){if(JSON.stringify(L0.list)===JSON.stringify(r.list)&&!!L0.lokal===!!r.lokal&&!!L0.memuat===!!r.memuat)return;r._anim=L0._anim;}
+   AK.rd=r;const me=r.list.findIndex(x=>x.id&&x.id===AKTIF);if(awal||!L0)AK.rp=me>=3?Math.floor((me-3)/RKP()):AK.rp;rkTampil();};
+  const cepat=peringkatCepat(lg);Promise.resolve().then(()=>{if(!cepat.kosong)tampilR(cepat,true);});/* ditunda sebentar: #rkIsi baru ada setelah w.innerHTML=h */
+  if(!cepat.kurang)peringkatServer(lg).then(sv=>{if(AK.l!=='rank'||AK.r!==lg)return;
+   if(sv&&sv.galat){pesan('🛠️','Peringkat nasional belum diaktifkan oleh guru. Untuk sementara, lihat peringkat Kelasku atau Sekolahku ya.');return;}
+   if(sv){tampilR(sv,false);return;}
+   if(cepat.kosong)tampilR({nasional:daring()?'gagal':'offline',list:[]},true);
+   else if(AK.rd===cepat){cepat.memuat=false;rkTampil();}});}
  w.innerHTML=h;if(AK.l==='pilih')daftarAkun();const pt=$('#pBub span');if(pt)pt.innerHTML='<i class="gt">'+hiasi(muatAkun().length?'Pilih kartumu, lalu tekan Masuk ya!':'Ayo buat kartu pertamamu!')+'</i>';segarStatus();fok(w.querySelector(AK.l==='pilih'?'.kt':'button:not([disabled])'));}
 function konfirmasi(teks,ya,cb){const lama=document.activeElement,d=document.createElement('div');d.className='kfm';
  d.innerHTML='<div class="kfm-box" role="alertdialog" aria-modal="true" aria-labelledby="kfmT"><div class="kf"><img class="kf-t" src="images/favicon.png" alt="" aria-hidden="true" onerror="this.remove()"><p id="kfmT"></p></div><div class="kf-b"><button class="btn" data-y="0">Batal</button><button class="btn utama" data-y="1"></button></div></div>';
@@ -4124,18 +4155,18 @@ function konfirmasi(teks,ya,cb){const lama=document.activeElement,d=document.cre
 const RKP=()=>INTRO.classList.contains('sm')?3:4;
 function rkTampil(){const e=$('#rkIsi'),R=AK.rd;if(!e||!R||AK.l!=='rank')return;
  const L=R.list,lg=R.lg,bin='<img class="ico" src="images/icon_bintang.png" alt="" aria-hidden="true">',
-  judul=lg==='kelas'?'Kelas '+esc(R.kel)+' · '+esc(R.sek):'Sekolah '+esc(R.sek),
+  judul=lg==='kelas'?'Kelas '+esc(R.kel)+' · '+esc(R.sek):lg==='nasional'?'Nasional · pemain dari seluruh Indonesia':'Sekolah '+esc(R.sek),
   me=L.findIndex(x=>x.id&&x.id===AKTIF),pg=$('#rkPg');
- const cat=`<p class="rkinfo">${judul}. Skor = jumlah lima indikator 2050 ditambah nilai Tebak Lagi.${me>=0?' Kamu peringkat ke-'+(me+1)+'.':''}${R.lokal&&GS_URL?' Sedang offline, jadi hanya menampilkan data di perangkat ini.':''}</p>`;
+ const cat=`<p class="rkinfo">${judul}. Skor = jumlah lima indikator 2050 ditambah nilai Tebak Lagi.${me>=0?' Kamu peringkat ke-'+(me+1)+'.':''}${R.memuat?' Memperbarui…':R.lokal&&GS_URL?(lg==='nasional'?' Sedang offline, jadi yang tampil peringkat tersimpan terakhir.':' Sedang offline, jadi hanya menampilkan data di perangkat ini.'):''}</p>`;
  if(!L.length){e.innerHTML=`<div class="rkkos"><div><div class="rkbig" aria-hidden="true">🏆</div><p>Belum ada skor. Selesaikan misi dulu, jadilah juara pertama!</p></div></div>${cat}`;if(pg)pg.innerHTML='';return;}
  const slot=i=>{const x=L[i],n=i+1;
   if(!x)return `<li class="pd p${n} kos"><div class="pdw"><div class="pdav" aria-hidden="true">?</div></div><b class="pdn">Belum ada</b><span class="pds">—</span><div class="pdb"><b>${n}</b></div></li>`;
   const aku=x.id&&x.id===AKTIF;
-  return `<li class="pd p${n}${aku?' aku':''}">${n===1?'<span class="pdtr" aria-hidden="true">🏆</span>':''}<div class="pdw">${n===1?'<span class="spk a" aria-hidden="true">✨</span><span class="spk b" aria-hidden="true">✨</span>':''}<div class="pdav">${avatarSVG(avaObj(x.avatar),64)}</div>${aku?'<i class="kmu">Kamu</i>':''}</div><b class="pdn" title="${esc(x.nama)}">${esc(x.nama)}</b><span class="pds">${bin}<span class="sn" data-n="${x.skor}">${x.skor}</span></span><div class="pdb"><b><span class="sr">Peringkat </span>${n}</b></div></li>`;};
+  return `<li class="pd p${n}${aku?' aku':''}">${n===1?'<span class="pdtr" aria-hidden="true">🏆</span>':''}<div class="pdw">${n===1?'<span class="spk a" aria-hidden="true">✨</span><span class="spk b" aria-hidden="true">✨</span>':''}<div class="pdav">${avatarSVG(avaObj(x.avatar),64)}</div>${aku?'<i class="kmu">Kamu</i>':''}</div><b class="pdn" title="${esc(x.nama)}${lg==='nasional'&&x.sekolah?' · '+esc(x.sekolah):''}">${esc(x.nama)}</b><span class="pds">${bin}<span class="sn" data-n="${x.skor}">${x.skor}</span></span><div class="pdb"><b><span class="sr">Peringkat </span>${n}</b></div></li>`;};
  const rest=L.slice(3),PER=RKP(),np=Math.max(1,Math.ceil(rest.length/PER));
  AK.rp=Math.max(0,Math.min(AK.rp||0,np-1));
  const baris=rest.slice(AK.rp*PER,AK.rp*PER+PER).map((x,j)=>{const n=4+AK.rp*PER+j,aku=x.id&&x.id===AKTIF;
-  return `<li class="${aku?'aku':''}" style="animation-delay:${(j*.07).toFixed(2)}s"><span class="rkn"><span class="sr">Peringkat </span>${n}</span>${avatarSVG(avaObj(x.avatar),36)}<b class="nm">${esc(x.nama)}</b>${aku?'<i class="kmu in">Kamu</i>':''}${lg==='sekolah'&&x.kelas?`<small>${esc(x.kelas)}</small>`:''}<span class="sk">${bin}${x.skor}</span></li>`;}).join('');
+  return `<li class="${aku?'aku':''}" style="animation-delay:${(j*.07).toFixed(2)}s"><span class="rkn"><span class="sr">Peringkat </span>${n}</span>${avatarSVG(avaObj(x.avatar),36)}<b class="nm">${esc(x.nama)}</b>${aku?'<i class="kmu in">Kamu</i>':''}${lg==='sekolah'&&x.kelas?`<small>${esc(x.kelas)}</small>`:''}${lg==='nasional'&&x.sekolah?`<small class="sek">${esc(x.sekolah)}</small>`:''}<span class="sk">${bin}${x.skor}</span></li>`;}).join('');
  const CC=['#ffd23f','#52d06a','#ff7a59','#4fb3ff','#ff8fd1'],cf='<div class="cfw" aria-hidden="true">'+Array.from({length:14},(_,i)=>`<i class="cf" style="--x:${(4+i*7)%96}%;--c:${CC[i%5]};--t:${(3.2+(i%4)*.7).toFixed(1)}s;--d:${((i*.37)%3).toFixed(2)}s;--dx:${(i%2?1:-1)*(1+i%3)}em"></i>`).join('')+'</div>';
  e.innerHTML=cf+`<ol class="pod" aria-label="Tiga juara teratas">${slot(0)}${slot(1)}${slot(2)}</ol>${rest.length?`<ol class="rkl" start="4">${baris}</ol>`:'<div class="rkkos kecilk"><p>Peringkat 4 dan seterusnya akan muncul di sini. Ayo ajak temanmu bermain!</p></div>'}${cat}`;
  if(!R._anim&&L.length){R._anim=1;const ok=()=>e.isConnected&&AK.l==='rank'&&AK.rd===R;
