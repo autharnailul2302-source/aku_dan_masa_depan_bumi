@@ -2403,6 +2403,12 @@ html.diam #guruIsi .rz-pot{animation:none}
 #guruIsi #gHasil .rz-kosong{border:0;background:none;flex:1;font-size:1.05em}
 #guruIsi #gHasil .baris{margin-top:.4em;justify-content:center}
 #guruIsi .rz-s ol{margin:.3em 0;padding-left:1.3em}
+#guruIsi .rz-s ul{margin:.3em 0 0;padding-left:1.2em}
+#guruIsi .rz-s ul li{margin:.45em 0}
+#guruIsi .rz-s:has(.rz-eint){grid-template-columns:1fr 1fr}
+#guruIsi .rz-s>.rz-eint,#guruIsi .rz-s>.rz-ef{grid-column:1/-1}
+#guruIsi .rz-s>.rz-e{grid-column:auto}
+html.kontras #guruIsi .rz-s>div{background:#000;color:#fff200;border-color:#fff200}
 #guruIsi code{background:#fff;border-radius:.4em;padding:0 .3em;word-break:break-all}
 #guruIsi .err{color:#b42318;font-weight:700}
 @media(max-width:820px){#guruIsi .rz-x{grid-template-columns:1fr;padding-top:5.6em;overflow:auto}#guruIsi .rz-riz{display:none}#guruIsi .rz-k4{grid-template-columns:repeat(2,1fr)}#guruIsi .rz-pane[data-t=link].on{grid-template-columns:1fr}}
@@ -3577,14 +3583,16 @@ function muatHasil(){try{return JSON.parse(localStorage.getItem(KEY)||'[]');}cat
 function simpanHasil(){
  const v=hitung(S.pilih,2050,S.bonus);
  const kk=kls(),rec={id:S.rid,waktu:new Date().toISOString(),kode:S.nama||'-',sekolah:kk.sekolah,kelas:kk.kelas,set_awal:S.setPre,skor_awal:S.skorPre,skor_akhir:S.skorPost,selisih:S.skorPost-S.skorPre,
+  bintang_bangun:(S.bintang||{}).bangun||0,bintang_hujan:(S.bintang||{}).hujan||0,bintang_panas:(S.bintang||{}).panas||0,bintang_total:Object.values(S.bintang||{}).reduce((a,b)=>a+(+b||0),0),
   aksi:Array.from(S.pilih).join('|'),koin_sisa:sisa(S.pilih),gagal_evakuasi:S.gagal,bantuan_warga:S.gotong?1:0,tindakan_panas:S.heat.join('|'),
   R2050:v.R,S2050:v.S,E2050:v.E,B2050:v.B,K2050:v.K,janji:S.janji||'',durasi_detik:Math.round((Date.now()-S.mulaiWaktu)/1000)};
  try{const l=muatHasil(),i=l.findIndex(x=>x.id===rec.id);if(i>=0)l[i]=rec;else l.push(rec);localStorage.setItem(KEY,JSON.stringify(l));}catch(e){}
+ try{const ak=akunAktif()||{};kirim({aksi:'hasil',id:'h'+rec.id,akun:ak.id||'',nama:rec.kode,sekolah:rec.sekolah||ak.sekolah||'',kelas:rec.kelas||ak.kelas||'',set_awal:rec.set_awal,skor_awal:rec.skor_awal,skor_akhir:rec.skor_akhir,selisih:rec.selisih,bintang_bangun:rec.bintang_bangun,bintang_hujan:rec.bintang_hujan,bintang_panas:rec.bintang_panas,bintang_total:rec.bintang_total,R2050:rec.R2050,S2050:rec.S2050,E2050:rec.E2050,B2050:rec.B2050,K2050:rec.K2050,gagal_evakuasi:rec.gagal_evakuasi,bantuan_warga:rec.bantuan_warga,durasi_detik:rec.durasi_detik,waktu:rec.waktu});}catch(e){}
  catatSkor(v);renderGuru();}
 /* ---------- Ekspor hasil: tabel rapi untuk guru (Excel .xlsx + CSV) ---------- */
 function tabelHasil(){
  const l=muatHasil(),p2=n=>String(n).padStart(2,'0'),num=x=>(x===''||x==null||!isFinite(+x))?'':+x;
- const H=['No','Tanggal','Jam','Kode / Nama Siswa','Sekolah','Kelas','Set Soal Awal','Skor Awal','Skor Akhir','Perubahan Skor','Pilihan Aksi','Koin Sisa','Evakuasi Gagal (kali)','Butuh Bantuan Warga','Tindakan Panas','Resapan Air 2050','Sejuk & Teduh 2050','Energi Bersih 2050','Bersih Sampah 2050','Siaga & Setara 2050','Janji Siswa','Waktu Main'];
+ const H=['No','Tanggal','Jam','Kode / Nama Siswa','Sekolah','Kelas','Set Soal Awal','Skor Awal','Skor Akhir','Perubahan Skor','Bintang Bangun Kampung (1-3)','Bintang Evakuasi (1-3)','Bintang Hari Panas (1-3)','Total Bintang (maks 9)','Pilihan Aksi','Koin Sisa','Evakuasi Gagal (kali)','Butuh Bantuan Warga','Tindakan Panas','Resapan Air 2050','Sejuk & Teduh 2050','Energi Bersih 2050','Bersih Sampah 2050','Siaga & Setara 2050','Janji Siswa','Waktu Main'];
  const R=l.map((r,i)=>{
   const d=r.waktu?new Date(r.waktu):null,ok=d&&!isNaN(d),
    aks=(r.aksi||'').split('|').filter(Boolean).map(x=>AMAP[x]?AMAP[x].nama:x).join(', '),
@@ -3592,7 +3600,7 @@ function tabelHasil(){
    j=JANJI.find(x=>x.id===r.janji),s=+r.durasi_detik||0,sel=+r.selisih||0;
   return [i+1,ok?p2(d.getDate())+'-'+p2(d.getMonth()+1)+'-'+d.getFullYear():'',ok?p2(d.getHours())+':'+p2(d.getMinutes()):'',
    r.kode||'-',r.sekolah||'',r.kelas||'',r.set_awal||'',num(r.skor_awal),num(r.skor_akhir),
-   sel>0?'Naik +'+sel:sel===0?'Tetap':'Turun '+sel,aks||'-',num(r.koin_sisa),+r.gagal_evakuasi||0,r.bantuan_warga?'Ya':'Tidak',pn||'-',
+   sel>0?'Naik +'+sel:sel===0?'Tetap':'Turun '+sel,num(r.bintang_bangun||''),num(r.bintang_hujan||''),num(r.bintang_panas||''),num(r.bintang_total||''),aks||'-',num(r.koin_sisa),+r.gagal_evakuasi||0,r.bantuan_warga?'Ya':'Tidak',pn||'-',
    num(r.R2050),num(r.S2050),num(r.E2050),num(r.B2050),num(r.K2050),
    j?j.t:'Belum memilih',s>7200?'Lebih dari 2 jam (sesi dilanjutkan)':Math.floor(s/60)+' menit '+(s%60)+' detik'];
  });
@@ -3601,7 +3609,7 @@ function tabelHasil(){
 function csv(){const {H,R}=tabelHasil();if(!R.length)return '';const q=x=>'"'+String(x).replace(/"/g,'""')+'"';return '\uFEFF'+H.map(q).join(';')+'\r\n'+R.map(r=>r.map(q).join(';')).join('\r\n');}
 function buatXlsx(H,R){
  const enc=new TextEncoder(),xe=s=>String(s).replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/g,'').replace(/[<>&"]/g,c=>({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;'}[c])),
-  kol=i=>String.fromCharCode(65+i),W=[5,12,8,20,26,10,10,10,10,15,52,10,13,14,40,12,12,12,12,12,52,30],
+  kol=i=>String.fromCharCode(65+i),W=[5,12,8,20,26,10,10,10,10,15,14,14,14,14,52,10,13,14,40,12,12,12,12,12,52,30],
   sel=(v,i,r)=>typeof v==='number'?`<c r="${kol(i)}${r}" s="3"><v>${v}</v></c>`:`<c r="${kol(i)}${r}" t="inlineStr" s="2"><is><t xml:space="preserve">${xe(v)}</t></is></c>`,
   baris=[`<row r="1" ht="42" customHeight="1">${H.map((h,i)=>`<c r="${kol(i)}1" t="inlineStr" s="1"><is><t>${xe(h)}</t></is></c>`).join('')}</row>`].concat(R.map((row,k)=>`<row r="${k+2}">${row.map((v,i)=>sel(v,i,k+2)).join('')}</row>`)),
   X='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>',NS='xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"',
@@ -3662,10 +3670,31 @@ const PANDUAN=`<details style="margin:10px 0"><summary>📘 Panduan guru: cara m
 </ol>
 <p class="kecil">Tanpa langkah D, skor hanya tersimpan di perangkat masing-masing dan peringkat hanya menampilkan akun di perangkat itu.</p>
 <div class="info"><b>Penting:</b> akun dan skor siswa tersimpan <b>per alamat gim</b>. Jika alamat berubah (misalnya pindah dari server lokal ke hosting), akun lama tidak ikut terbawa. Tentukan alamat tetap sebelum siswa mulai bermain.</div>
+<h3>E. Cara membaca skor dan bintang</h3>
+<div class="info rz-eint"><b>Intinya:</b> Skor 0–3 adalah alat ukur pemahaman untuk guru dan peneliti. Bintang 1–3 adalah penghargaan permainan untuk siswa dan bukan data penilaian. Keduanya berbeda, jadi jangan dicampur.</div>
+<div class="rz-e"><b>Skor 0–3 (Awal, Akhir, Selisih)</b>
+<ul>
+<li><b>Dari mana:</b> Tebak Cepat (sebelum bermain) dan Tebak Lagi (sesudah bermain) masing-masing berisi 3 soal pilihan ganda dengan 3 pilihan. Tiap jawaban benar bernilai 1, jadi skornya 0 sampai 3.</li>
+<li><b>Awal</b> = skor sebelum bermain. <b>Akhir</b> = skor sesudah bermain. <b>Selisih</b> = Akhir dikurangi Awal. Positif berarti naik, 0 berarti tetap, negatif berarti turun.</li>
+<li><b>Set soal:</b> Awal memakai set A atau B secara acak, Akhir memakai set yang satunya. Siswa tidak mengerjakan soal yang sama dua kali.</li>
+</ul></div>
+<div class="rz-e"><b>Bintang 1–3 (hadiah tiap level)</b>
+<ul>
+<li><b>Bangun kampung:</b> dinilai dari lima indikator kampung pada pilihan siswa. 3 bintang bila seimbang dan hampir tidak ada indikator lemah, 2 bintang bila cukup kuat, 1 bintang bila banyak yang lemah.</li>
+<li><b>Latihan evakuasi:</b> 3 bintang bila jalur langsung tepat dan alarm tiga sensor terpasang. 2 bintang bila berhasil setelah memperbaiki rencana, atau langsung berhasil tanpa alarm tiga sensor. 1 bintang bila dibantu warga, atau gagal dulu dan tanpa alarm tiga sensor.</li>
+<li><b>Hari panas:</b> dinilai dari seberapa sejuk dan teduh sekolah setelah siswa memilih pohon dan dua tindakan menghadapi panas. 3 bintang bila nyaman, 2 bila cukup, 1 bila masih terik.</li>
+<li>Tiap level minimal 1 bintang, total paling banyak 9. Jumlahnya menentukan gelar di Kartu Penjaga Bumi: 8 sampai 9 Pahlawan Bumi, 5 sampai 7 Penjaga Bumi Hebat, di bawah itu Tunas Penjaga Bumi.</li>
+</ul></div>
+<div class="rz-e rz-ef"><b>Cara menafsirkan</b>
+<ul>
+<li>Bintang tinggi belum tentu berarti paham. Siswa bisa mengulang dan mencoba pilihan lain, lalu bintang terbaik yang disimpan. Gunakan skor Awal dan Akhir untuk menilai perkembangan.</li>
+<li>Bintang tampil di kolom tersendiri pada tabel Ringkasan dan ekspor Excel atau CSV (data lama tanpa bintang diberi tanda strip), tetapi tidak dihitung dalam Selisih. Peringkat Pahlawan Bumi juga tidak memakai bintang. Poinnya adalah jumlah lima indikator 2050 ditambah 10 kali skor Tebak Lagi, dan angka itu bukan skor 0–3.</li>
+<li>Karena hanya 3 soal dengan 3 pilihan, siswa yang menebak acak rata-rata mendapat sekitar 1. Selisih satu poin pada satu siswa belum cukup untuk disimpulkan. Lihat rata-rata kelas dan jumlah siswanya.</li>
+</ul></div>
 </details>`;
 let GTAB='ringkas',GPAN=0;
-const GSUBJ=['A. Hosting','B. Server lokal','C. Tanpa QR','D. Leaderboard'];
-const RIZT={ringkas:'Selamat datang! Lihat skor siswa sebelum dan sesudah bermain. Klik nama siswa untuk melihat profil dan saran tindak lanjut.',link:'Isi sekolah dan kelas, lalu tekan Buat link kelas. Bagikan link atau QR ke siswa. Mereka tidak perlu mengetik kelas lagi.',panduan:['Hosting gratis cocok untuk jangka panjang. Siswa bisa main di kelas maupun di rumah.','Server lokal cocok untuk lab komputer. Laptop dan HP siswa harus memakai Wi-Fi yang sama.','Tanpa QR pun bisa. Siswa cukup mengetik kode kelas saat membuat akun baru.','Langkah ini membuat peringkat bersama lewat Google Sheets. Boleh dilewati kalau belum perlu.']};
+const GSUBJ=['A. Hosting','B. Server lokal','C. Tanpa QR','D. Leaderboard','E. Membaca skor'];
+const RIZT={ringkas:'Selamat datang! Lihat skor siswa sebelum dan sesudah bermain. Klik nama siswa untuk melihat profil dan saran tindak lanjut.',link:'Isi sekolah dan kelas, lalu tekan Buat link kelas. Bagikan link atau QR ke siswa. Mereka tidak perlu mengetik kelas lagi.',panduan:['Hosting gratis cocok untuk jangka panjang. Siswa bisa main di kelas maupun di rumah.','Server lokal cocok untuk lab komputer. Laptop dan HP siswa harus memakai Wi-Fi yang sama.','Tanpa QR pun bisa. Siswa cukup mengetik kode kelas saat membuat akun baru.','Langkah ini membuat peringkat bersama lewat Google Sheets. Boleh dilewati kalau belum perlu.','Skor 0–3 mengukur pemahaman dan dipakai untuk analisis. Bintang 1–3 hanya hadiah permainan untuk siswa, jadi jangan dicampur.']};
 function rizBicara(){const t=GTAB==='panduan'?RIZT.panduan[GPAN]||RIZT.panduan[0]:RIZT[GTAB],e=document.getElementById('gBubT');if(e)e.textContent=t;}
 function renderGuru(){const l=muatHasil(),n=l.length,m=a=>n?(a.reduce((s,x)=>s+x,0)/n).toFixed(2):'-';
  const ps=PANDUAN.replace(/^<details[^>]*>\s*<summary>[\s\S]*?<\/summary>/,'').replace(/<\/details>\s*$/,'').split(/(?=<h3>)/);
@@ -3673,7 +3702,7 @@ function renderGuru(){const l=muatHasil(),n=l.length,m=a=>n?(a.reduce((s,x)=>s+x
  const T=[['ringkas','📊 Ringkasan'],['link','🔗 Link kelas'],['panduan','📘 Panduan']];
  const on=k=>k===GTAB?' on':'';
  const tp=GTAB==='panduan'?RIZT.panduan[GPAN]||RIZT.panduan[0]:RIZT[GTAB];
- const baris=l.slice().reverse().map(r=>`<tr data-act="gSiswa" data-id="${r.id}"><td><button type="button" class="rz-nm" data-act="gSiswa" data-id="${r.id}">${esc(String(r.kode||'-'))}</button></td><td>${esc(((r.sekolah||'')+' '+(r.kelas||'')).trim())||'-'}</td><td>${r.skor_awal}</td><td>${r.skor_akhir}</td><td class="rz-sel">${r.selisih>0?'+':''}${r.selisih}</td></tr>`).join('');
+ const baris=l.slice().reverse().map(r=>`<tr data-act="gSiswa" data-id="${r.id}"><td><button type="button" class="rz-nm" data-act="gSiswa" data-id="${r.id}">${esc(String(r.kode||'-'))}</button></td><td>${esc(((r.sekolah||'')+' '+(r.kelas||'')).trim())||'-'}</td><td>${r.skor_awal}</td><td>${r.skor_akhir}</td><td class="rz-sel">${r.selisih>0?'+':''}${r.selisih}</td><td>${r.bintang_total?r.bintang_total+' / 9':'-'}</td></tr>`).join('');
  $('#guruIsi').innerHTML=`<div class="rz-x" role="dialog" aria-modal="true" aria-labelledby="gJudul">
  <aside class="rz-kiri"><div class="rz-bubw"><div class="rz-bub"><b class="rz-nama">Bu Rizka</b><p id="gBubT">${tp}</p></div></div><div class="rz-riz"><div class="rz-pot">${tokohImg('bu_rizka','senang',avatarSVG0(RIZ,300),260)}</div></div></aside>
  <div class="rz-kanan"><h2 class="rz-judul" id="gJudul">Untuk guru dan peneliti</h2>
@@ -3686,8 +3715,8 @@ function renderGuru(){const l=muatHasil(),n=l.length,m=a=>n?(a.reduce((s,x)=>s+x
    <div class="rz-k"><b>${m(l.map(x=>x.skor_akhir))}</b><span>Rata-rata akhir</span></div>
    <div class="rz-k rz-pos"><b>${m(l.map(x=>x.selisih))}</b><span>Rata-rata selisih</span></div>
   </div>
-  ${n?`<div class="rz-tbl"><table><thead><tr><th>Kode siswa</th><th>Kelas</th><th>Awal</th><th>Akhir</th><th>Selisih</th></tr></thead><tbody>${baris}</tbody></table></div>`:'<div class="rz-tbl rz-kosong">Belum ada siswa yang menyelesaikan gim di perangkat ini.</div>'}
-  <p class="kecil" style="flex:none">Skor 0–3. Set soal awal diacak (A/B) agar adil. ${GS_URL?'Saat online, data juga dikirim ke Google Sheets sekolah.':'Data hanya tersimpan di perangkat ini.'} Gunakan nama panggilan atau kode, dan minta izin sekolah atau orang tua sebelum uji coba.</p>
+  ${n?`<div class="rz-tbl"><table><thead><tr><th>Kode siswa</th><th>Kelas</th><th>Awal</th><th>Akhir</th><th>Selisih</th><th>Bintang</th></tr></thead><tbody>${baris}</tbody></table></div>`:'<div class="rz-tbl rz-kosong">Belum ada siswa yang menyelesaikan gim di perangkat ini.</div>'}
+  <p class="kecil" style="flex:none">Skor 0–3 = jumlah jawaban benar dari 3 soal, bukan bintang (lihat Panduan bagian E). Set soal awal diacak (A/B) agar adil. ${GS_URL?'Saat online, data juga dikirim ke Google Sheets sekolah.':'Data hanya tersimpan di perangkat ini.'} Gunakan nama panggilan atau kode, dan minta izin sekolah atau orang tua sebelum uji coba.</p>
   <div class="baris"><button class="btn utama" data-act="xlsx" ${n?'':'disabled'}>⬇️ Unduh Excel (.xlsx)</button><button class="btn" data-act="csv" ${n?'':'disabled'}>⬇️ Unduh CSV</button><button class="btn bahaya" data-act="hapus" ${n?'':'disabled'}>🗑️ Hapus semua data</button><span class="kecil">Perangkat ini: ${KONF.sekolah?esc(KONF.sekolah)+(KONF.kelas?' · '+esc(KONF.kelas):''):'belum diatur'}</span></div>
  </section>
  <section class="rz-pane${on('link')}" data-t="link">
